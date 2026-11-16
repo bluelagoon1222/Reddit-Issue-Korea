@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>REDDIT ISSUE KOREA — 미국 화제 종목 이슈를 한국어로</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%230B2D5B'/><path d='M22 30 h56 a8 8 0 0 1 8 8 v24 a8 8 0 0 1 -8 8 h-26 l-16 14 v-14 h-14 a8 8 0 0 1 -8 -8 v-24 a8 8 0 0 1 8 -8z' fill='%23F37321'/><text x='50' y='59' font-size='26' font-family='sans-serif' font-weight='700' fill='white' text-anchor='middle'>KR</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nanum+Gothic:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--orange:#F37321;--orange-ink:#A3460B;--navy:#0B2D5B;--navy-soft:#DCE5F2;--ink:#1B2230;--sub:#5B6475;
+  --line:#E3E6EB;--band:#F4F6F9;--red:#C2410C;--font:"Nanum Gothic","Malgun Gothic","Apple SD Gothic Neo",sans-serif}
+*{box-sizing:border-box}
+html,body{margin:0;background:#fff;color:var(--ink);font-family:var(--font);font-size:16.5px;line-height:1.55;word-break:keep-all;-webkit-text-size-adjust:100%}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--orange);outline-offset:2px}
+a{color:var(--navy)}
+.wrap{max-width:1360px;margin:0 auto;padding:0 22px}
+header{background:var(--navy);color:#fff;padding:24px 0 20px;border-bottom:4px solid var(--orange)}
+.hd{display:flex;gap:16px;align-items:flex-start}
+.home{flex:none;display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:12px;background:rgba(255,255,255,.12);text-decoration:none;font-size:22px;margin-top:4px}
+.home:hover{background:rgba(255,255,255,.22)}
+header h1{margin:0;font-size:36px;font-weight:800;letter-spacing:-.3px}
+header h1 .en{font-size:17px;font-weight:700;color:var(--orange);margin-left:8px;vertical-align:5px}
+header p{margin:6px 0 0;color:#C9D6EA;font-size:17px}
+.meta{display:flex;flex-wrap:wrap;gap:4px 20px;margin-top:10px;font-size:14.5px;color:#C9D6EA}
+.meta b{color:#fff}
+.lag{display:flex;gap:10px;align-items:flex-start;border:2px solid var(--orange);background:#FFF6EF;border-radius:10px;padding:12px 16px;margin:18px 0 12px;font-size:15.5px}
+.lag .ic{flex:none;width:22px;height:22px;border-radius:50%;background:var(--orange);color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center;font-size:13px;margin-top:2px}
+.lag b{color:var(--orange-ink)}
+.warn{border:2px solid var(--red);background:#FEF2F2;border-radius:10px;padding:10px 16px;margin:12px 0;font-size:15px;color:#7F1D1D}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;border-bottom:2px solid var(--navy);margin-top:6px}
+.tab{border:1.5px solid var(--line);border-bottom:0;background:var(--band);padding:12px 22px;border-radius:10px 10px 0 0;font-weight:800;cursor:pointer;font-size:18px;color:var(--sub)}
+.tab[aria-selected="true"]{background:var(--navy);border-color:var(--navy);color:#fff}
+.lead{margin:14px 0 6px;padding:12px 16px;background:var(--band);border-left:4px solid var(--navy);border-radius:6px;line-height:1.6;font-size:15.5px}
+.lead b.t{font-size:17px}
+.sec{margin:22px 0 4px;font-size:19px;font-weight:800;color:var(--navy)}
+.sec .note{font-weight:400}
+.note{font-size:13.5px;color:var(--sub)}
+.empty{padding:28px;text-align:center;color:var(--sub);border:1px dashed var(--line);border-radius:10px;margin-top:10px}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:14px;margin-top:10px}
+.card{border:1px solid var(--line);border-radius:12px;padding:14px 16px 10px;background:#fff;box-shadow:0 1px 0 #EEF0F3}
+.card .top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.card h3{margin:0;font-size:21px;color:var(--navy);line-height:1.3}
+.card h3 small{font-size:14px;color:var(--sub);font-weight:700;margin-left:6px}
+.card .en{font-size:12.5px;color:var(--sub)}
+.stat{text-align:right;font-size:13px;color:var(--sub);white-space:nowrap;line-height:1.45}
+.stat b{font-size:17px;color:var(--ink)}
+.pos{color:var(--red);font-weight:800}.neg{color:var(--navy);font-weight:800}
+.why{margin:8px 0 4px;padding:7px 10px;background:#FFF6EF;border-radius:8px;font-weight:700;font-size:15px}
+.why::before{content:"💬 "}
+.kr{margin:8px 0 4px;padding:7px 10px;background:var(--navy-soft);border-radius:8px;font-size:14.5px}
+.kr b{color:var(--navy)}
+.bdg{display:inline-block;font-size:11.5px;font-weight:800;border-radius:4px;padding:1px 6px;margin-right:4px;white-space:nowrap;vertical-align:2px}
+.b-hot{background:#FEE2E2;color:#B91C1C}.b-top{background:var(--navy-soft);color:var(--navy)}
+ul.arts{list-style:none;margin:6px 0 0;padding:0}
+ul.arts li{padding:9px 0;border-top:1px solid var(--line)}
+ul.arts li:first-child{border-top:0}
+.at{font-weight:800;font-size:15.5px;text-decoration:none;color:var(--ink);line-height:1.4}
+.at:hover{color:var(--navy);text-decoration:underline}
+.as{margin:3px 0 0;font-size:14px;color:#333B4A}
+.am{margin-top:3px;font-size:12.5px;color:var(--sub);display:flex;flex-wrap:wrap;gap:2px 10px}
+.am a{color:var(--sub)}
+.ent{font-size:12.5px;color:var(--sub);margin-top:2px}
+.noart{font-size:14px;color:var(--sub);padding:8px 0}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0 8px}
+.chip{border:1.5px solid #C7CDD6;background:#fff;font-weight:700;font-size:15px;padding:7px 13px;border-radius:10px;box-shadow:0 2px 0 #DDE2E9;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--navy);border-color:var(--navy);color:#fff}
+.search{border:1.5px solid #C7CDD6;border-radius:10px;padding:9px 12px;font-size:16px;width:300px;max-width:100%}
+.list{border-top:2px solid var(--navy);margin-top:6px}
+.list .row{display:grid;grid-template-columns:110px 1fr;gap:12px;padding:11px 4px;border-bottom:1px solid var(--line)}
+.list .tm{font-size:13px;color:var(--sub);line-height:1.4}
+.tkb{display:inline-block;font-size:12px;font-weight:800;background:var(--band);border:1px solid var(--line);border-radius:4px;padding:0 5px;margin:0 4px 0 0;cursor:pointer}
+footer{margin-top:40px;padding:20px 0 34px;background:var(--band);font-size:13px;color:var(--sub)}
+@media (max-width:760px){
+  .wrap{padding:0 14px}
+  header h1{font-size:27px}
+  header h1 .en{display:block;margin:2px 0 0;font-size:14px}
+  header p{font-size:15px}
+  .tab{padding:9px 12px;font-size:15.5px}
+  .cards{grid-template-columns:1fr}
+  .list .row{grid-template-columns:1fr;gap:2px}
+}
+</style>
+</head>
+<body>
+<header><div class="wrap hd">
+  <a class="home" href="https://bluelagoon1222.github.io/" title="SJ Market Desk 홈" aria-label="SJ Market Desk 홈">🏠</a>
+  <div>
+    <h1>REDDIT ISSUE KOREA <span class="en">(미국 화제 종목 이슈를 한국어로)</span></h1>
+    <p>미국 Reddit 투자 게시판에서 많이 오르내리는 종목과 한국 투자자 관심 종목의 최신 기사를 한국어로 모아 봅니다</p>
+    <div class="meta"><span>갱신 <b id="gen">—</b></span><span>기사 <b id="na">—</b></span><span>출처 <b>ApeWisdom</b>(Reddit 언급) · <b>Yahoo Finance</b>(기사) · AI 번역</span></div>
+  </div>
+</div></header>
+<main class="wrap" id="app"><div class="empty" style="margin-top:30px">데이터를 불러오는 중입니다.</div></main>
+<footer><div class="wrap">투자 참고용이며 투자 권유가 아닙니다. 한국어 제목과 요약은 기사 제목과 짧은 발췌문(RSS)만을 바탕으로 AI가 번역한 것이라 원문과 차이가 있을 수 있습니다. 숫자와 사실관계는 반드시 원문으로 확인하세요. ‘한국어로 보기’는 Google 번역 화면으로 열리며, 유료 기사는 원문 사이트에서만 볼 수 있습니다. 언급 수는 ApeWisdom이 집계한 최근 24시간 Reddit 종목코드 등장 횟수입니다. 한국 연관 종목의 연관 근거는 공개 정보를 바탕으로 이 사이트가 정리한 것입니다.<div id="diag" style="margin-top:6px"></div></div></footer>
+<script>
+if (window.top !== window.self) { const h = document.querySelector(".home"); if (h) h.style.display = "none"; }
+let D, st = {tab:"hot", q:"", tk:null, lim:60};
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const num = v => v == null ? "—" : Math.round(v).toLocaleString();
+const tr = u => "https://translate.google.com/translate?sl=en&tl=ko&u=" + encodeURIComponent(u);
+const ago = iso => { const m = (Date.now() - new Date(iso)) / 6e4; return m < 60 ? Math.max(1, Math.round(m)) + "분 전" : m < 1440 ? Math.round(m/60) + "시간 전" : Math.round(m/1440) + "일 전"; };
+const kst = iso => new Date(iso).toLocaleString("ko-KR",{timeZone:"Asia/Seoul",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"});
+
+fetch("data/issues.json?v=" + Date.now()).then(r => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+  .then(js => { D = js; render(); })
+  .catch(e => { $("#app").innerHTML = `<div class="empty" style="margin-top:30px">데이터 파일을 읽지 못했습니다: ${esc(e.message)}</div>`; });
+
+function render(){
+  if (D.status !== "ok"){ $("#app").innerHTML = '<div class="empty" style="margin-top:30px">첫 수집 전입니다. 저장소의 Actions 실행이 끝나면 표시됩니다.</div>'; return; }
+  $("#gen").textContent = new Date(D.generated_at).toLocaleString("ko-KR",{timeZone:"Asia/Seoul",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}) + " (KST)";
+  $("#na").textContent = D.archive.length + "건 (최근 3일)";
+  const DG = {reddit:"Reddit 언급 자료 없음", news:"일부 종목 기사 조회 실패", translate:"번역 일부 실패 또는 미설정", cache:"캐시 재생성"};
+  $("#diag").textContent = (D.diag || []).length ? "수집 참고: " + [...new Set(D.diag.map(x => DG[x.src] || x.src))].join(" · ") : "";
+  const noKo = !D.model;
+  $("#app").innerHTML = `
+    ${noKo ? '<div class="warn">번역 키가 아직 등록되지 않아 영문 제목으로 표시합니다. 제목을 누르면 한국어 번역 화면으로 열립니다.</div>' : ""}
+    ${D.reddit_ok ? "" : '<div class="warn">이번 수집에서 Reddit 언급 자료를 받지 못했습니다. ‘오늘의 화제’ 대신 관심 종목 기사만 표시합니다.</div>'}
+    <div class="lag" role="note"><span class="ic">!</span><div><b>주가 방향을 알려주는 신호가 아닙니다.</b> 미국 개인투자자가 지금 무엇을 이야기하는지, 그 이유가 된 기사가 무엇인지 빠르게 파악하는 용도입니다. 고객 상담 전 화제 확인용으로 쓰세요.</div></div>
+    <div class="tabs" role="tablist">${[["hot","① 오늘의 화제"],["seohak","② 서학개미 관심"],["korea","③ 한국 연관 종목"],["all","④ 기사 모아보기"]].map(([k,t]) => `<button class="tab" role="tab" aria-selected="${st.tab===k}" data-t="${k}">${t}</button>`).join("")}</div>
+    <div id="pane"></div>`;
+  document.querySelectorAll(".tab").forEach(b => b.onclick = () => { st.tab = b.dataset.t; st.lim = 60; render(); });
+  ({hot:renderHot, seohak:() => renderGroup("seohak"), korea:() => renderGroup("korea"), all:renderAll})[st.tab]();
+}
+
+function artItem(id){
+  const a = D.articles[id]; if (!a) return "";
+  const title = a.ko_t || a.t;
+  return `<li><a class="at" href="${esc(tr(a.url))}" target="_blank" rel="noopener">${esc(title)}</a>
+    ${a.ko_s ? `<p class="as">${esc(a.ko_s)}</p>` : ""}
+    ${a.ko_t ? `<div class="ent">${esc(a.t)}</div>` : ""}
+    <div class="am"><span>${esc(a.src)}</span><span title="${esc(kst(a.pub))} KST">${ago(a.pub)}</span><a href="${esc(a.url)}" target="_blank" rel="noopener">원문</a><a href="${esc(tr(a.url))}" target="_blank" rel="noopener">한국어로 보기</a></div></li>`;
+}
+function card(s, opt={}){
+  const t = D.tickers[s]; if (!t) return "";
+  const chg = t.m != null && t.m24 != null ? t.m - t.m24 : null;
+  const stat = t.m != null ? `<div class="stat">Reddit 언급 <b>${num(t.m)}</b><br>전일 ${num(t.m24)} · ${t.r ? t.r + "위" : ""} ${t.rel != null ? `<span class="${t.rel >= 1.5 ? "pos" : t.rel <= 0.67 ? "neg" : ""}">${t.rel.toFixed(1)}배</span>` : ""}</div>`
+                        : `<div class="stat">Reddit 언급<br><b>—</b> 상위권 밖</div>`;
+  const tags = (opt.top ? '<span class="bdg b-top">언급 상위</span>' : "") + (opt.surge ? '<span class="bdg b-hot">급증</span>' : "");
+  return `<div class="card"><div class="top"><div>${tags}<h3>${esc(t.ko || t.s)}<small>${esc(t.s)}</small></h3>${t.en ? `<div class="en">${esc(t.en)}</div>` : ""}</div>${stat}</div>
+    ${opt.kr && t.kr ? `<div class="kr"><b>🇰🇷 ${esc(t.kr)}</b> — ${esc(t.kwhy)}</div>` : ""}
+    ${opt.why && t.why ? `<div class="why">${esc(t.why)}</div>` : ""}
+    ${t.arts.length ? `<ul class="arts">${t.arts.slice(0, opt.n || 3).map(artItem).join("")}</ul>` : '<div class="noart">최근 3일 관련 기사 없음</div>'}</div>`;
+}
+function renderHot(){
+  const g = D.groups;
+  if (!D.reddit_ok || (!g.top.length && !g.surge.length)){ $("#pane").innerHTML = '<div class="empty">Reddit 화제 종목 자료가 없습니다. ② ③ 탭을 이용하세요.</div>'; return; }
+  $("#pane").innerHTML = `<div class="lead"><b class="t">지금 Reddit에서 화제인 종목</b> — 최근 24시간 언급 상위 종목과, 언급이 갑자기 늘어난 종목입니다. ‘배’는 전일 대비 증가 배율(시장 전체 증감 보정)이고, 💬 줄은 관련 기사 제목을 바탕으로 AI가 정리한 화제 이유입니다.</div>
+    <div class="sec">🚨 언급 급증 <span class="note">${g.surge.length}개 · 15회 이상, 시장 대비 2배 이상</span></div>
+    ${g.surge.length ? `<div class="cards">${g.surge.map(s => card(s, {why:true, surge:true})).join("")}</div>` : '<div class="empty">오늘은 기준을 넘는 급증 종목이 없습니다.</div>'}
+    <div class="sec">📣 언급 상위 10 <span class="note">ETF·일상 단어와 겹치는 종목코드 제외</span></div>
+    <div class="cards">${g.top.map(s => card(s, {why:true, top:true})).join("")}</div>`;
+}
+function renderGroup(k){
+  const list = D.groups[k];
+  const lead = k === "seohak"
+    ? `<b class="t">서학개미 관심 종목</b> — 한국 개인투자자가 많이 보유한 미국 종목입니다. 목록은 수동 관리하며 월 1회 점검합니다.`
+    : `<b class="t">한국 기업과 연결된 미국 종목</b> — 이 종목들의 뉴스는 파란 띠에 적힌 한국 기업 주가에도 영향을 줄 수 있습니다.`;
+  const sorted = list.slice().sort((a,b) => (D.tickers[b]?.m ?? -1) - (D.tickers[a]?.m ?? -1));
+  $("#pane").innerHTML = `<div class="lead">${lead} Reddit 언급이 많은 순서로 정렬합니다.</div><div class="cards">${sorted.map(s => card(s, {why:true, kr:k === "korea"})).join("")}</div>`;
+}
+function renderAll(){
+  const tks = [...new Set(D.archive.flatMap(id => D.articles[id]?.tk || []))].sort();
+  $("#pane").innerHTML = `<div class="bar"><input class="search" id="q" placeholder="검색 (예: 엔비디아, 실적, HBM)" value="${esc(st.q)}"><span class="note">한국어·영문 제목과 요약에서 찾습니다</span></div>
+    <div class="bar"><button class="chip" aria-pressed="${!st.tk}" data-tk="">전체</button>${tks.map(s => `<button class="chip" aria-pressed="${st.tk===s}" data-tk="${s}">${esc(D.tickers[s]?.ko || s)}</button>`).join("")}</div><div id="res"></div>`;
+  const run = () => {
+    const q = st.q.trim().toLowerCase();
+    const ids = D.archive.filter(id => { const a = D.articles[id]; if (!a) return false; if (st.tk && !a.tk.includes(st.tk)) return false;
+      return !q || [a.ko_t, a.ko_s, a.t, ...a.tk.map(s => D.tickers[s]?.ko || "")].join(" ").toLowerCase().includes(q); });
+    $("#res").innerHTML = ids.length ? `<div class="list">${ids.slice(0, st.lim).map(id => { const a = D.articles[id];
+      return `<div class="row"><div class="tm">${esc(kst(a.pub))}<br>${a.tk.map(s => `<span class="tkb" data-tk="${s}">${esc(D.tickers[s]?.ko || s)}</span>`).join("")}</div><ul class="arts" style="margin:0">${artItem(id)}</ul></div>`; }).join("")}</div>
+      ${ids.length > st.lim ? `<div style="text-align:center;margin:10px"><button class="chip" id="more">더 보기 (${ids.length - st.lim}건 남음)</button></div>` : ""}` : '<div class="empty">조건에 맞는 기사가 없습니다.</div>';
+    const m = $("#more"); if (m) m.onclick = () => { st.lim += 60; run(); };
+    document.querySelectorAll("#res [data-tk]").forEach(b => b.onclick = () => { st.tk = b.dataset.tk; st.lim = 60; renderAll(); });
+  };
+  $("#q").addEventListener("input", e => { st.q = e.target.value; st.lim = 60; run(); });
+  document.querySelectorAll(".bar [data-tk]").forEach(b => b.onclick = () => { st.tk = b.dataset.tk || null; st.lim = 60; renderAll(); });
+  run();
+}
+</script>
+</body>
+</html>
