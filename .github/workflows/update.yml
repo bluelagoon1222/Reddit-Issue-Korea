@@ -33,6 +33,7 @@ jobs:
       - name: Collect
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python scripts/collect.py
       - name: Commit data
         run: |
