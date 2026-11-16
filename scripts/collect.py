@@ -3,11 +3,10 @@
 
 1. ApeWisdom       which US tickers Reddit is talking about (mentions now vs 24h ago)
 2. Yahoo Finance   latest English headlines + RSS blurb per ticker (RSS feed)
-3. OpenRouter      Korean title + short summary of each headline (from the RSS blurb only),
-                   and a one-line "why it is in the news" per hot ticker
+3. Gemini / OpenRouter (free tiers only)  Korean headline titles
 
 Outputs: data/issues.json (page), data/articles.json (translation cache, 10 days), data/names.json
-Secret : OPENROUTER_API_KEY - free models only (":free"), never paid ones
+Secrets: GEMINI_API_KEY (Google AI Studio free tier, used first) and/or OPENROUTER_API_KEY (free ":free" models only)
 """
 import datetime as dt
 import email.utils
@@ -29,10 +28,13 @@ APE = "https://apewisdom.io/api/v1.0/filter/all-stocks/page/{page}"
 RSS = "https://feeds.finance.yahoo.com/rss/2.0/headline?s={s}&region=US&lang=en-US"
 OR_BASE = "https://openrouter.ai/api/v1"
 OR_KEY = os.environ.get("OPENROUTER_API_KEY", "").strip()
+GM_BASE = "https://generativelanguage.googleapis.com/v1beta/openai"
+GM_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
+PROVIDER = {"base": OR_BASE, "key": OR_KEY, "name": "openrouter"}
 OR_MODEL = os.environ.get("OR_MODEL", "").strip()
 # Free models only. OpenRouter free limit: 20 requests/minute, 50 requests/day (below $10 lifetime purchases)
 FREE_PREFS = ["google/gemma", "minimax/", "nvidia/nemotron", "qwen/", "deepseek/", "meta-llama/"]
-MAX_CALLS = 12          # requests per run (3 runs a day stays under the 50/day free cap)
+MAX_CALLS = 8           # requests per run (well inside the free daily caps)
 
 NOW = dt.datetime.now(dt.timezone.utc)
 NEWS_HOURS = 72          # headlines older than this are ignored
@@ -41,7 +43,7 @@ PER_TICKER = 6           # newest relevant candidates kept per ticker
 HOT_TOP = 10             # most-mentioned tickers
 HOT_SURGE = 10           # fastest-rising tickers
 MAX_TRANSLATE = 150      # new headlines translated per run
-BATCH = 15
+BATCH = 40
 
 AMBIGUOUS = set("""
 HR CIA IT DTE NYT AI DD CEO CFO USA EV PM AM TV UK EU IRS IPO ATH EOD IMO EPS GDP CPI PE OP RH PT TA DCA IV PSA DC
@@ -218,8 +220,34 @@ def news(tickers, names):
 
 
 # ------------------------------------------------------------------ 3. translation
+def pick_gemini():
+    """Google Gemini API free tier (no card on the Google project = no charges). Flash-Lite has the largest free daily quota."""
+    try:
+        r = requests.get(GM_BASE + "/models", headers={"Authorization": f"Bearer {GM_KEY}"}, timeout=60)
+        r.raise_for_status()
+        ids = [m["id"].split("/")[-1] for m in r.json().get("data", [])]
+    except Exception as e:
+        diag("translate", f"Gemini model list unavailable ({e})")
+        return None
+    def ver(i):
+        m = re.search(r"gemini-(\d+)\.(\d+)", i)
+        return (int(m.group(1)), int(m.group(2))) if m else (0, 0)
+    lite = [i for i in ids if "flash-lite" in i and not re.search(r"preview|exp|image|tts|audio|live", i)]
+    flash = [i for i in ids if re.search(r"gemini-[\d.]+-flash$", i)]
+    ranked = sorted(lite, key=lambda i: (ver(i), -len(i)), reverse=True)[:2] + sorted(flash, key=ver, reverse=True)[:1]
+    if not ranked:
+        diag("translate", "no Gemini Flash model found")
+        return None
+    PROVIDER.update(base=GM_BASE, key=GM_KEY, name="gemini")
+    return ranked
+
+
 def pick_model():
-    """Free models only (ids ending in ':free') - this site must not spend credits."""
+    """Gemini free tier first; otherwise OpenRouter free models only (ids ending in ':free') - this site must not spend credits."""
+    if GM_KEY:
+        m = pick_gemini()
+        if m:
+            return m
     if not OR_KEY:
         diag("translate", "OPENROUTER_API_KEY not set - English headlines only")
         return None
@@ -244,7 +272,7 @@ def ask(models, system, user, max_tokens=8000, cap=MAX_CALLS):
     body = {"model": models[0], "models": models[:3], "temperature": 0.2, "max_tokens": max_tokens,
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
             "response_format": {"type": "json_object"}}
-    hdr = {"Authorization": f"Bearer {OR_KEY}", "Content-Type": "application/json",
+    hdr = {"Authorization": f"Bearer {PROVIDER['key']}", "Content-Type": "application/json",
            "HTTP-Referer": "https://bluelagoon1222.github.io/Reddit-Issue-Korea/", "X-Title": "Reddit-Issue-Korea"}
     last = ""
     for attempt in range(4):
@@ -252,7 +280,10 @@ def ask(models, system, user, max_tokens=8000, cap=MAX_CALLS):
             raise RuntimeError("per-run request cap reached")
         USAGE["req"] += 1
         try:
-            r = requests.post(OR_BASE + "/chat/completions", headers=hdr, json=body, timeout=180)
+            if PROVIDER["name"] == "gemini":
+                body.pop("models", None)
+                time.sleep(7)                     # free tier allows about 10 requests a minute
+            r = requests.post(PROVIDER["base"] + "/chat/completions", headers=hdr, json=body, timeout=180)
         except requests.RequestException as e:
             last = str(e)
             time.sleep(5)
@@ -260,7 +291,7 @@ def ask(models, system, user, max_tokens=8000, cap=MAX_CALLS):
         if r.status_code == 400 and "response_format" in body:
             body.pop("response_format")
             continue
-        if r.status_code == 429 and "per-day" in r.text.lower() or r.status_code == 402:
+        if r.status_code == 429 and re.search(r"per.?day|daily", r.text.lower()) or r.status_code == 402:
             raise RuntimeError(f"HTTP {r.status_code}: daily free limit or credit limit")
         if r.status_code in (429, 500, 502, 503):
             last = f"HTTP {r.status_code}"
@@ -298,42 +329,35 @@ SYS_T = ("너는 미국 증시 기사를 한국 증권사 PB(프라이빗뱅커)
          "광고성·일반론 기사(특정 종목과 관계없는 투자 상식, 종목 추천 목록 등)는 rel을 0으로 한다. 반드시 JSON만 출력한다.")
 
 
-def translate(model, items, names):
-    done = {}
-    for i in range(0, len(items), BATCH):
+def translate(model, items, names, unknown):
+    """Korean headline titles only (plus Korean company names for tickers without one)."""
+    done, ko_names = {}, {}
+    for i in range(0, len(items) or 1, BATCH):
         chunk = items[i:i + BATCH]
-        payload = [{"id": a["id"], "tickers": [f"{s} ({names.get(s) or s})" for s in a["tk"]], "title": a["t"], "excerpt": a["d"]} for a in chunk]
-        user = ("각 기사마다 다음을 만들어라.\n- ko_t: 한국어 제목 (60자 이내, 자연스러운 기사 제목체)\n"
-                "- ko_s: 발췌문 기준 한국어 요약 1~2문장 (100자 이내, '~다'체). 발췌문이 비었거나 제목과 같으면 제목을 풀어쓴 1문장\n"
-                "- rel: 해당 종목에 관한 실질적 뉴스면 1, 아니면 0\n"
-                '출력 형식: {"items":[{"id":"...","ko_t":"...","ko_s":"...","rel":1}]}\n\n' + json.dumps(payload, ensure_ascii=False))
+        ask_names = unknown if i == 0 else []
+        if not chunk and not ask_names:
+            break
+        payload = {"articles": [{"id": a["id"], "tickers": [f"{s} ({names.get(s) or s})" for s in a["tk"]], "title": a["t"], "excerpt": a["d"][:200]} for a in chunk],
+                   "companies": [{"ticker": s, "name": n} for s, n in ask_names]}
+        user = ("articles의 각 기사마다:\n- ko_t: 영문 제목의 한국어 번역 (60자 이내, 자연스러운 기사 제목체, 숫자는 영문 제목과 동일)\n"
+                "- rel: 해당 종목에 관한 실질적 뉴스면 1, 종목과 무관한 일반론·광고성 기사면 0 (excerpt는 판단에만 사용)\n"
+                "companies의 각 종목마다:\n- ko: 한국 언론에서 쓰는 한국어 회사명\n"
+                '출력 형식: {"items":[{"id":"...","ko_t":"...","rel":1}],"names":[{"ticker":"...","ko":"..."}]}\n\n'
+                + json.dumps(payload, ensure_ascii=False))
         try:
-            js = ask(model, SYS_T, user, cap=MAX_CALLS - 1)
+            js = ask(model, SYS_T, user)
             for x in js.get("items") or []:
                 if x.get("id") and x.get("ko_t"):
-                    done[x["id"]] = {"ko_t": str(x["ko_t"]).strip(), "ko_s": str(x.get("ko_s") or "").strip(), "rel": 1 if x.get("rel") in (1, "1", True) else 0}
+                    done[x["id"]] = {"ko_t": str(x["ko_t"]).strip(), "ko_s": None, "rel": 1 if x.get("rel") in (1, "1", True) else 0}
+            for x in js.get("names") or []:
+                if x.get("ticker") and x.get("ko"):
+                    ko_names[str(x["ticker"]).upper()] = str(x["ko"]).strip()[:30]
         except Exception as e:
             diag("translate", f"batch failed: {e}")
             if i == 0 or "limit" in str(e) or "cap" in str(e):
                 break
-    log("translated", len(done), "of", len(items))
-    return done
-
-
-def why_lines(model, hot, per, arts, rows):
-    payload = []
-    for s in hot:
-        heads = [arts[i]["ko_t"] or arts[i]["t"] for i in per.get(s, []) if arts[i].get("rel", 1)][:4]
-        payload.append({"ticker": s, "company": rows.get(s, {}).get("name") or s, "headlines": heads})
-    user = ("Reddit에서 언급이 많은 미국 종목들이다. 각 종목에 대해:\n- ko: 한국어 회사명 (한국 언론 표기)\n"
-            "- why: 주어진 기사 제목만 근거로 '왜 화제인지' 한 줄 (45자 이내, 명사형 종결). 제목이 없으면 빈 문자열\n"
-            '출력 형식: {"items":[{"ticker":"...","ko":"...","why":"..."}]}\n\n' + json.dumps(payload, ensure_ascii=False))
-    try:
-        js = ask(model, SYS_T, user, max_tokens=6000)
-        return {str(x.get("ticker", "")).upper(): x for x in js.get("items") or []}
-    except Exception as e:
-        diag("translate", f"summary lines failed: {e}")
-        return {}
+    log("translated", len(done), "of", len(items), "| names", len(ko_names))
+    return done, ko_names
 
 
 # ------------------------------------------------------------------ main
@@ -367,18 +391,14 @@ def main():
             a.update({"ko_t": None, "ko_s": None, "rel": None})
 
     model = pick_model()
-    whys = {}
     if model:
         todo = sorted([a for a in arts.values() if a["ko_t"] is None], key=lambda a: a["pub"], reverse=True)[:MAX_TRANSLATE]
-        res = translate(model, todo, {s: names_ko.get(s) or en_names.get(s) or s for s in tickers})
+        unknown = [(s, en_names.get(s) or s) for s in hot if s not in names_ko][:20]
+        res, ko_names = translate(model, todo, {s: names_ko.get(s) or en_names.get(s) or s for s in tickers}, unknown)
         for k, v in res.items():
             if k in arts:
                 arts[k].update(v)
-        if hot:
-            whys = why_lines(model, hot, per, arts, rows)
-            for s, x in whys.items():
-                if x.get("ko") and s not in names_ko:
-                    names_ko[s] = str(x["ko"]).strip()[:30]
+        names_ko.update(ko_names)
         log("model", model, "usage", USAGE)
 
     for k, a in arts.items():
@@ -393,7 +413,7 @@ def main():
         ids = [i for i in per.get(s, []) if arts[i].get("rel") != 0][:4]
         tk[s] = {"s": s, "ko": names_ko.get(s), "en": rv.get("name") or None,
                  "m": rv.get("m"), "m24": rv.get("m24"), "rel": rv.get("rel"), "r": rv.get("r"), "r24": rv.get("r24"),
-                 "why": (whys.get(s) or {}).get("why") or None, "kr": kmap.get(s, {}).get("kr"), "kwhy": kmap.get(s, {}).get("why"),
+                 "kr": kmap.get(s, {}).get("kr"), "kwhy": kmap.get(s, {}).get("why"),
                  "arts": ids}
     used = {i for t in tk.values() for i in t["arts"]}
     recent = sorted([a for a in arts.values() if a.get("rel") != 0], key=lambda a: a["pub"], reverse=True)
@@ -402,7 +422,7 @@ def main():
     out = {"status": "ok", "generated_at": NOW.isoformat(timespec="seconds"), "model": USAGE.get("model") or (model[0] if model else None), "usage": USAGE,
            "reddit_ok": bool(rows), "reddit_total": sum(v["m"] for v in rows.values()) if rows else None, "market_ratio": round(mkt, 3),
            "groups": {"top": top, "surge": surge, "seohak": seohak, "korea": korea}, "tickers": tk,
-           "articles": {i: {k: arts[i].get(k) for k in ("t", "ko_t", "ko_s", "url", "src", "pub", "tk")} for i in used},
+           "articles": {i: {k: arts[i].get(k) for k in ("t", "ko_t", "url", "src", "pub", "tk")} for i in used},
            "archive": archive, "diag": DIAG}
     save("issues.json", out)
     log("wrote data/issues.json | tickers", len(tk), "| articles", len(used), "| diag", len(DIAG))
