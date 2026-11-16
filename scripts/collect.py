@@ -7,7 +7,7 @@
                    and a one-line "why it is in the news" per hot ticker
 
 Outputs: data/issues.json (page), data/articles.json (translation cache, 10 days), data/names.json
-Secret : OPENROUTER_API_KEY (without it the page shows English headlines only)
+Secret : OPENROUTER_API_KEY - free models only (":free"), never paid ones
 """
 import datetime as dt
 import email.utils
@@ -30,7 +30,9 @@ RSS = "https://feeds.finance.yahoo.com/rss/2.0/headline?s={s}&region=US&lang=en-
 OR_BASE = "https://openrouter.ai/api/v1"
 OR_KEY = os.environ.get("OPENROUTER_API_KEY", "").strip()
 OR_MODEL = os.environ.get("OR_MODEL", "").strip()
-MODEL_PREFS = ["google/gemini-3.8-flash", "openai/gpt-6-luna", "anthropic/claude-haiku-5.5", "google/gemini", "openai/gpt-6", "anthropic/claude-haiku"]
+# Free models only. OpenRouter free limit: 20 requests/minute, 50 requests/day (below $10 lifetime purchases)
+FREE_PREFS = ["google/gemma", "minimax/", "nvidia/nemotron", "qwen/", "deepseek/", "meta-llama/"]
+MAX_CALLS = 12          # requests per run (3 runs a day stays under the 50/day free cap)
 
 NOW = dt.datetime.now(dt.timezone.utc)
 NEWS_HOURS = 72          # headlines older than this are ignored
@@ -38,7 +40,7 @@ KEEP_DAYS = 10           # translation cache
 PER_TICKER = 6           # newest relevant candidates kept per ticker
 HOT_TOP = 10             # most-mentioned tickers
 HOT_SURGE = 10           # fastest-rising tickers
-MAX_TRANSLATE = 180      # new headlines translated per run (cost cap)
+MAX_TRANSLATE = 150      # new headlines translated per run
 BATCH = 15
 
 AMBIGUOUS = set("""
@@ -48,6 +50,7 @@ IQ ICE ON ALL NOW SO A I ARE FOR OR GO BE CAN ANY ONE OUT REAL GOOD WELL BIG NEX
 SAVE CASH TELL VERY MAN FUN HAS BRO WOW DAY KEY NEW OLD TWO SEE RUN LOW PAY JOB CAR EAT FLY HOPE RIDE BEAT MOVE
 TURN SELF LINK MAIN PEAK ROLL UNIT FAST EVER ELSE JUST MOST MUCH ONLY SOME THAN THAT THEN THEY THIS WHEN WILL
 WITH WHAT WSJ CNBC FDA DOJ FTC SEC FED ETF NFT GPU CPU LLM AGI MOON APE BULL BEAR PUMP DUMP
+YOU ME WE US AN AT BY UP DO NO TO OF IN IS AS HE SHE HIM HER OUR WHO WHY HOW
 """.split())
 INDEX_ETF = set("""
 SPY QQQ IWM DIA VOO VTI VT VXUS QQQM TQQQ SQQQ SPXL SPXS SPXU UPRO SOXL SOXS SOXX SMH UVXY VXX SVXY TLT TMF GLD SLV
@@ -65,7 +68,7 @@ SRC = {"finance.yahoo.com": "Yahoo Finance", "fool.com": "Motley Fool", "stocktw
        "marketwatch.com": "MarketWatch", "investing.com": "Investing.com", "benzinga.com": "Benzinga", "zacks.com": "Zacks",
        "seekingalpha.com": "Seeking Alpha", "simplywall.st": "Simply Wall St", "insidermonkey.com": "Insider Monkey"}
 
-DIAG, USAGE = [], {"calls": 0, "in": 0, "out": 0}
+DIAG, USAGE = [], {"calls": 0, "req": 0, "in": 0, "out": 0}
 
 
 def log(*a):
@@ -216,35 +219,37 @@ def news(tickers, names):
 
 # ------------------------------------------------------------------ 3. translation
 def pick_model():
+    """Free models only (ids ending in ':free') - this site must not spend credits."""
     if not OR_KEY:
         diag("translate", "OPENROUTER_API_KEY not set - English headlines only")
         return None
     if OR_MODEL:
-        return OR_MODEL
+        return OR_MODEL if OR_MODEL.endswith(":free") or OR_MODEL == "openrouter/free" else None
     try:
         r = requests.get(OR_BASE + "/models", headers={"Authorization": f"Bearer {OR_KEY}"}, timeout=60)
         r.raise_for_status()
-        ms = [m for m in r.json().get("data", []) if not m["id"].endswith(":free")]
+        free = [m for m in r.json().get("data", []) if m["id"].endswith(":free") and (m.get("context_length") or 0) >= 32000]
     except Exception as e:
-        diag("translate", f"model list unavailable ({e}) - using default")
-        return MODEL_PREFS[0]
-    price = lambda m: float((m.get("pricing") or {}).get("prompt") or 9) + float((m.get("pricing") or {}).get("completion") or 9)
-    for pref in MODEL_PREFS:
-        c = sorted([m for m in ms if m["id"].startswith(pref) and price(m) < 2e-5], key=lambda m: (len(m["id"]), price(m)))
+        diag("translate", f"model list unavailable ({e}) - using the free router")
+        return "openrouter/free"
+    for pref in FREE_PREFS:
+        c = [m["id"] for m in free if m["id"].startswith(pref)]
         if c:
-            return c[0]["id"]
-    c = sorted([m for m in ms if m["id"].split("/")[0] in ("google", "openai", "anthropic") and price(m) > 0], key=price)
-    return c[0]["id"] if c else MODEL_PREFS[0]
+            return sorted(c, key=len)[0]
+    return "openrouter/free"
 
 
-def ask(model, system, user, max_tokens=6000):
+def ask(model, system, user, max_tokens=4000, cap=MAX_CALLS):
     body = {"model": model, "temperature": 0.2, "max_tokens": max_tokens,
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
             "response_format": {"type": "json_object"}}
     hdr = {"Authorization": f"Bearer {OR_KEY}", "Content-Type": "application/json",
            "HTTP-Referer": "https://bluelagoon1222.github.io/Reddit-Issue-Korea/", "X-Title": "Reddit-Issue-Korea"}
     last = ""
-    for attempt in range(4):
+    for attempt in range(3):
+        if USAGE["req"] >= cap:
+            raise RuntimeError("per-run request cap reached")
+        USAGE["req"] += 1
         try:
             r = requests.post(OR_BASE + "/chat/completions", headers=hdr, json=body, timeout=180)
         except requests.RequestException as e:
@@ -254,9 +259,11 @@ def ask(model, system, user, max_tokens=6000):
         if r.status_code == 400 and "response_format" in body:
             body.pop("response_format")
             continue
+        if r.status_code == 429 and "per-day" in r.text.lower() or r.status_code == 402:
+            raise RuntimeError(f"HTTP {r.status_code}: daily free limit or credit limit")
         if r.status_code in (429, 500, 502, 503):
             last = f"HTTP {r.status_code}"
-            time.sleep(10 * (attempt + 1))
+            time.sleep(20 * (attempt + 1))
             continue
         if r.status_code != 200:
             raise RuntimeError(f"HTTP {r.status_code}: {r.text[:200]}")
@@ -288,13 +295,13 @@ def translate(model, items, names):
                 "- rel: 해당 종목에 관한 실질적 뉴스면 1, 아니면 0\n"
                 '출력 형식: {"items":[{"id":"...","ko_t":"...","ko_s":"...","rel":1}]}\n\n' + json.dumps(payload, ensure_ascii=False))
         try:
-            js = ask(model, SYS_T, user)
+            js = ask(model, SYS_T, user, cap=MAX_CALLS - 1)
             for x in js.get("items") or []:
                 if x.get("id") and x.get("ko_t"):
                     done[x["id"]] = {"ko_t": str(x["ko_t"]).strip(), "ko_s": str(x.get("ko_s") or "").strip(), "rel": 1 if x.get("rel") in (1, "1", True) else 0}
         except Exception as e:
             diag("translate", f"batch failed: {e}")
-            if i == 0:
+            if i == 0 or "limit" in str(e) or "cap" in str(e):
                 break
     log("translated", len(done), "of", len(items))
     return done
@@ -309,7 +316,7 @@ def why_lines(model, hot, per, arts, rows):
             "- why: 주어진 기사 제목만 근거로 '왜 화제인지' 한 줄 (45자 이내, 명사형 종결). 제목이 없으면 빈 문자열\n"
             '출력 형식: {"items":[{"ticker":"...","ko":"...","why":"..."}]}\n\n' + json.dumps(payload, ensure_ascii=False))
     try:
-        js = ask(model, SYS_T, user, max_tokens=3000)
+        js = ask(model, SYS_T, user, max_tokens=2500)
         return {str(x.get("ticker", "")).upper(): x for x in js.get("items") or []}
     except Exception as e:
         diag("translate", f"summary lines failed: {e}")
@@ -321,6 +328,7 @@ def main():
     DATA.mkdir(parents=True, exist_ok=True)
     conf = json.loads(CONF.read_text(encoding="utf-8"))
     names_ko = load("names.json", {})
+    names_ko.setdefault("GOOG", "알파벳(구글)")
     for g in ("seohak", "korea"):
         for x in conf[g]:
             names_ko[x["s"]] = x["ko"]
