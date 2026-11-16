@@ -224,23 +224,24 @@ def pick_model():
         diag("translate", "OPENROUTER_API_KEY not set - English headlines only")
         return None
     if OR_MODEL:
-        return OR_MODEL if OR_MODEL.endswith(":free") or OR_MODEL == "openrouter/free" else None
+        return [OR_MODEL] if OR_MODEL.endswith(":free") or OR_MODEL == "openrouter/free" else None
     try:
         r = requests.get(OR_BASE + "/models", headers={"Authorization": f"Bearer {OR_KEY}"}, timeout=60)
         r.raise_for_status()
         free = [m for m in r.json().get("data", []) if m["id"].endswith(":free") and (m.get("context_length") or 0) >= 32000]
     except Exception as e:
         diag("translate", f"model list unavailable ({e}) - using the free router")
-        return "openrouter/free"
+        return ["openrouter/free"]
+    ranked = []
     for pref in FREE_PREFS:
-        c = [m["id"] for m in free if m["id"].startswith(pref)]
-        if c:
-            return sorted(c, key=len)[0]
-    return "openrouter/free"
+        ranked += sorted([m["id"] for m in free if m["id"].startswith(pref) and m["id"] not in ranked], key=len)
+    ranked += [m["id"] for m in free if m["id"] not in ranked]
+    return ranked[:3] + ["openrouter/free"]          # tried in order when one is busy
 
 
-def ask(model, system, user, max_tokens=4000, cap=MAX_CALLS):
-    body = {"model": model, "temperature": 0.2, "max_tokens": max_tokens,
+def ask(models, system, user, max_tokens=4000, cap=MAX_CALLS):
+    """models: free model ids in priority order; OpenRouter falls back to the next one when one is busy."""
+    body = {"model": models[0], "models": models[:3], "temperature": 0.2, "max_tokens": max_tokens,
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
             "response_format": {"type": "json_object"}}
     hdr = {"Authorization": f"Bearer {OR_KEY}", "Content-Type": "application/json",
@@ -263,11 +264,16 @@ def ask(model, system, user, max_tokens=4000, cap=MAX_CALLS):
             raise RuntimeError(f"HTTP {r.status_code}: daily free limit or credit limit")
         if r.status_code in (429, 500, 502, 503):
             last = f"HTTP {r.status_code}"
-            time.sleep(20 * (attempt + 1))
+            if len(models) > 1:                       # busy: rotate to the next free model
+                models[:] = models[1:] + models[:1]   # in place: later calls start with the next model
+                body["model"], body["models"] = models[0], models[:3]
+            time.sleep(15 * (attempt + 1))
             continue
         if r.status_code != 200:
             raise RuntimeError(f"HTTP {r.status_code}: {r.text[:200]}")
         js = r.json()
+        if js.get("model"):
+            USAGE["model"] = js["model"]
         u = js.get("usage") or {}
         USAGE["calls"] += 1
         USAGE["in"] += u.get("prompt_tokens") or 0
@@ -281,7 +287,7 @@ def ask(model, system, user, max_tokens=4000, cap=MAX_CALLS):
 
 SYS_T = ("너는 미국 증시 기사를 한국 증권사 PB(프라이빗뱅커)에게 전달하는 번역가다. "
          "주어진 영문 제목과 RSS 발췌문만 근거로 쓴다. 발췌문에 없는 사실·숫자·전망을 절대 덧붙이지 않는다. "
-         "숫자, 날짜, 회사명, 인명은 원문 그대로 정확히 옮긴다. 회사명은 한국 언론 표기(예: 엔비디아, 테슬라)를 쓴다. "
+         "숫자, 날짜, 회사명, 인명은 원문 그대로 정확히 옮긴다. 한국어 제목의 숫자는 영문 제목의 숫자와 같아야 한다. 회사명은 한국 언론 표기(예: 엔비디아, 테슬라)를 쓴다. "
          "광고성·일반론 기사(특정 종목과 관계없는 투자 상식, 종목 추천 목록 등)는 rel을 0으로 한다. 반드시 JSON만 출력한다.")
 
 
@@ -386,7 +392,7 @@ def main():
     recent = sorted([a for a in arts.values() if a.get("rel") != 0], key=lambda a: a["pub"], reverse=True)
     archive = [a["id"] for a in recent]
     used |= set(archive)
-    out = {"status": "ok", "generated_at": NOW.isoformat(timespec="seconds"), "model": model, "usage": USAGE,
+    out = {"status": "ok", "generated_at": NOW.isoformat(timespec="seconds"), "model": USAGE.get("model") or (model[0] if model else None), "usage": USAGE,
            "reddit_ok": bool(rows), "reddit_total": sum(v["m"] for v in rows.values()) if rows else None, "market_ratio": round(mkt, 3),
            "groups": {"top": top, "surge": surge, "seohak": seohak, "korea": korea}, "tickers": tk,
            "articles": {i: {k: arts[i].get(k) for k in ("t", "ko_t", "ko_s", "url", "src", "pub", "tk")} for i in used},
