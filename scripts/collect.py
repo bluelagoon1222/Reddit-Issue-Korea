@@ -239,7 +239,7 @@ def pick_model():
     return ranked[:3] + ["openrouter/free"]          # tried in order when one is busy
 
 
-def ask(models, system, user, max_tokens=4000, cap=MAX_CALLS):
+def ask(models, system, user, max_tokens=8000, cap=MAX_CALLS):
     """models: free model ids in priority order; OpenRouter falls back to the next one when one is busy."""
     body = {"model": models[0], "models": models[:3], "temperature": 0.2, "max_tokens": max_tokens,
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
@@ -247,7 +247,7 @@ def ask(models, system, user, max_tokens=4000, cap=MAX_CALLS):
     hdr = {"Authorization": f"Bearer {OR_KEY}", "Content-Type": "application/json",
            "HTTP-Referer": "https://bluelagoon1222.github.io/Reddit-Issue-Korea/", "X-Title": "Reddit-Issue-Korea"}
     last = ""
-    for attempt in range(3):
+    for attempt in range(4):
         if USAGE["req"] >= cap:
             raise RuntimeError("per-run request cap reached")
         USAGE["req"] += 1
@@ -272,8 +272,6 @@ def ask(models, system, user, max_tokens=4000, cap=MAX_CALLS):
         if r.status_code != 200:
             raise RuntimeError(f"HTTP {r.status_code}: {r.text[:200]}")
         js = r.json()
-        if js.get("model"):
-            USAGE["model"] = js["model"]
         u = js.get("usage") or {}
         USAGE["calls"] += 1
         USAGE["in"] += u.get("prompt_tokens") or 0
@@ -281,7 +279,16 @@ def ask(models, system, user, max_tokens=4000, cap=MAX_CALLS):
         txt = (js["choices"][0]["message"].get("content") or "").strip()
         txt = re.sub(r"^```(?:json)?\s*|\s*```$", "", txt)
         m = re.search(r"\{.*\}", txt, re.S)
-        return json.loads(m.group(0) if m else txt)
+        try:
+            res = json.loads(m.group(0) if m else txt)
+            USAGE["model"] = js.get("model") or models[0]
+            return res
+        except ValueError:                       # empty or broken answer (e.g. a reasoning model ran out of room)
+            last = f"unreadable answer from {js.get('model') or models[0]}"
+            if len(models) > 1:
+                models[:] = models[1:] + models[:1]
+                body["model"], body["models"] = models[0], models[:3]
+            continue
     raise RuntimeError(f"request failed ({last})")
 
 
@@ -322,7 +329,7 @@ def why_lines(model, hot, per, arts, rows):
             "- why: 주어진 기사 제목만 근거로 '왜 화제인지' 한 줄 (45자 이내, 명사형 종결). 제목이 없으면 빈 문자열\n"
             '출력 형식: {"items":[{"ticker":"...","ko":"...","why":"..."}]}\n\n' + json.dumps(payload, ensure_ascii=False))
     try:
-        js = ask(model, SYS_T, user, max_tokens=2500)
+        js = ask(model, SYS_T, user, max_tokens=6000)
         return {str(x.get("ticker", "")).upper(): x for x in js.get("items") or []}
     except Exception as e:
         diag("translate", f"summary lines failed: {e}")
