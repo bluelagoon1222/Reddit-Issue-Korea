@@ -53,6 +53,11 @@ header p{margin:6px 0 0;color:#C9D6EA;font-size:17px}
 .rd{display:inline-flex;align-items:center;gap:5px;margin:8px 0 2px;padding:6px 12px;border-radius:8px;background:#FF4500;color:#fff;font-weight:800;font-size:14px;text-decoration:none}
 .rd:hover{background:#D93A00}
 .rd2{font-size:13px;color:var(--sub);margin-left:6px}
+.guide{display:flex;gap:12px;align-items:flex-start;border:1.5px solid var(--navy);background:var(--navy-soft);border-radius:10px;padding:12px 16px;margin:0 0 12px;font-size:15px}
+.guide b{color:var(--navy)}
+.guide ol{margin:4px 0 0;padding-left:20px}
+.guide button{margin-left:auto;flex:none;border:1px solid var(--navy);background:#fff;color:var(--navy);border-radius:8px;padding:5px 10px;font-weight:700;cursor:pointer;font-size:13px}
+.paid{display:inline-block;font-size:11px;font-weight:800;border-radius:4px;padding:0 5px;background:#FEF3C7;color:#92400E;border:1px solid #FCD34D}
 .kr{margin:8px 0 4px;padding:7px 10px;background:var(--navy-soft);border-radius:8px;font-size:14.5px}
 .kr b{color:var(--navy)}
 .bdg{display:inline-block;font-size:11.5px;font-weight:800;border-radius:4px;padding:1px 6px;margin-right:4px;white-space:nowrap;vertical-align:2px}
@@ -108,6 +113,9 @@ const SUBS = "wallstreetbets+stocks+investing+options+StockMarket";
 const rlink = s => `https://www.reddit.com/r/${SUBS}/search/?q=${encodeURIComponent(s)}&restrict_sr=1&sort=new&t=week`;
 const glink = s => `https://www.google.com/search?q=${encodeURIComponent("site:reddit.com " + s + " stock")}&tbs=qdr:w&hl=ko`;
 const tr = u => u;
+const PAID = ["Barron's", "WSJ", "IBD", "Bloomberg", "Seeking Alpha", "investors.com", "barrons.com", "wsj.com", "ft.com", "economist.com", "theinformation.com"];
+const isPaid = a => PAID.some(p => (a.src || "").toLowerCase() === p.toLowerCase() || (a.url || "").includes(p.toLowerCase()) && p.includes("."));
+const store = { get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }, set(k,v){ try { localStorage.setItem(k,v); } catch(e){} } };
 const ago = iso => { const m = (Date.now() - new Date(iso)) / 6e4; return m < 60 ? Math.max(1, Math.round(m)) + "분 전" : m < 1440 ? Math.round(m/60) + "시간 전" : Math.round(m/1440) + "일 전"; };
 const kst = iso => new Date(iso).toLocaleString("ko-KR",{timeZone:"Asia/Seoul",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"});
 
@@ -126,8 +134,15 @@ function render(){
     ${noKo ? '<div class="warn">번역 키가 아직 등록되지 않아 영문 제목으로 표시합니다. 제목을 누르면 한국어 번역 화면으로 열립니다.</div>' : ""}
     ${D.reddit_ok ? "" : '<div class="warn">이번 수집에서 Reddit 언급 자료를 받지 못했습니다. ‘오늘의 화제’ 대신 관심 종목 기사만 표시합니다.</div>'}
     <div class="lag" role="note"><span class="ic">!</span><div><b>주가 방향을 알려주는 신호가 아닙니다.</b> 미국 개인투자자가 지금 무엇을 이야기하는지, 그 이유가 된 기사가 무엇인지 빠르게 파악하는 용도입니다. 고객 상담 전 화제 확인용으로 쓰세요.</div></div>
+    ${store.get("rik_guide_off") ? "" : `<div class="guide" id="guide"><div><b>영문 기사를 자동으로 한국어로 보는 법 (Chrome, 처음 한 번만)</b><ol>
+      <li>기사 제목을 눌러 영문 원문을 엽니다</li>
+      <li>주소창 오른쪽 번역 아이콘(文A 모양)을 누릅니다. 안 보이면 페이지에서 마우스 오른쪽 클릭 → ‘한국어(으)로 번역’</li>
+      <li>번역 창의 점 3개(⋮) → <b>‘항상 영어 번역’</b>을 선택하면, 이후 영문 기사는 열자마자 한국어로 바뀝니다</li></ol>
+      <div class="note" style="margin-top:4px">‘유료’ 표시 기사는 구독해야 전문을 볼 수 있습니다. 일부 해외 소형 사이트는 국내 접속이 막혀 열리지 않을 수 있습니다.</div></div>
+      <button id="guideOff">다시 보지 않기</button></div>`}
     <div class="tabs" role="tablist">${[["hot","① 오늘의 화제"],["seohak","② 서학개미 관심"],["korea","③ 한국 연관 종목"],["all","④ 기사 모아보기"]].map(([k,t]) => `<button class="tab" role="tab" aria-selected="${st.tab===k}" data-t="${k}">${t}</button>`).join("")}</div>
     <div id="pane"></div>`;
+  const go = $("#guideOff"); if (go) go.onclick = () => { store.set("rik_guide_off", "1"); $("#guide").remove(); };
   document.querySelectorAll(".tab").forEach(b => b.onclick = () => { st.tab = b.dataset.t; st.lim = 60; render(); });
   ({hot:renderHot, seohak:() => renderGroup("seohak"), korea:() => renderGroup("korea"), all:renderAll})[st.tab]();
 }
@@ -137,7 +152,7 @@ function artItem(id){
   const title = a.ko_t || a.t;
   return `<li><a class="at" href="${esc(tr(a.url))}" target="_blank" rel="noopener">${esc(title)}</a>
     ${a.ko_t ? `<div class="ent">${esc(a.t)}</div>` : ""}
-    <div class="am"><span>${esc(a.src)}</span><span title="${esc(kst(a.pub))} KST">${ago(a.pub)}</span><a href="${esc(a.url)}" target="_blank" rel="noopener">원문 열기</a></div></li>`;
+    <div class="am"><span>${esc(a.src)}</span>${isPaid(a) ? '<span class="paid" title="구독해야 전문을 볼 수 있는 출처">유료</span>' : ""}<span title="${esc(kst(a.pub))} KST">${ago(a.pub)}</span><a href="${esc(a.url)}" target="_blank" rel="noopener">원문 열기</a></div></li>`;
 }
 function card(s, opt={}){
   const t = D.tickers[s]; if (!t) return "";
