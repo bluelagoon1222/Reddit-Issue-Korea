@@ -70,6 +70,9 @@ SRC = {"finance.yahoo.com": "Yahoo Finance", "fool.com": "Motley Fool", "stocktw
        "marketwatch.com": "MarketWatch", "investing.com": "Investing.com", "benzinga.com": "Benzinga", "zacks.com": "Zacks",
        "seekingalpha.com": "Seeking Alpha", "simplywall.st": "Simply Wall St", "insidermonkey.com": "Insider Monkey"}
 
+# Sources whose links fail or are unreliable for users in Korea (add a domain when a link keeps failing)
+BLOCKED_SRC = {"firstformoney.com"}
+
 DIAG, USAGE = [], {"calls": 0, "req": 0, "in": 0, "out": 0}
 
 
@@ -196,6 +199,11 @@ def mentions(s, name, a):
     return bool(pat and re.search(pat, text))
 
 
+def blocked(url):
+    dom = re.sub(r"^www\.", "", re.sub(r"^https?://([^/]+).*$", r"\1", url))
+    return any(dom == b or dom.endswith("." + b) for b in BLOCKED_SRC)
+
+
 def news(tickers, names):
     arts, per = {}, {}
     for s in tickers:
@@ -203,7 +211,7 @@ def news(tickers, names):
         if not r:
             per[s] = []
             continue
-        items = [a for a in parse_rss(s, r.text) if mentions(s, names.get(s), a)]
+        items = [a for a in parse_rss(s, r.text) if mentions(s, names.get(s), a) and not blocked(a["url"])]
         items.sort(key=lambda a: a["pub"], reverse=True)
         per[s] = []
         for a in items[:PER_TICKER]:
@@ -381,7 +389,7 @@ def main():
 
     cache = load("articles.json", {})
     cutoff = (NOW - dt.timedelta(days=KEEP_DAYS)).isoformat()
-    cache = {k: v for k, v in cache.items() if v.get("pub", "") >= cutoff}
+    cache = {k: v for k, v in cache.items() if v.get("pub", "") >= cutoff and not blocked(v.get("url", ""))}
     for k, a in arts.items():
         c = cache.get(k)
         if c:
